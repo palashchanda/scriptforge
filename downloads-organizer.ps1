@@ -1,8 +1,5 @@
 Clear-Host
-
-Write-Host "================================" -ForegroundColor Green
 Write-Host "  Downloads Organizer" -ForegroundColor Yellow
-Write-Host "================================" -ForegroundColor Green
 Write-Host ""
 
 $downloadsPath = "$env:USERPROFILE\Downloads"
@@ -57,6 +54,4 @@ foreach ($category in $categories.Keys) {
 }
 
 Write-Host ""
-Write-Host "================================" -ForegroundColor Green
 Write-Host "Organized $filesMoved files." -ForegroundColor Yellow
-Write-Host "================================" -ForegroundColor Green
