@@ -9,7 +9,7 @@ $downloadsPath = "$env:USERPROFILE\Downloads"
 
 # File categories
 $categories = @{
-    "🖼 Images"      = @("*.jpg","*.jpeg","*.png","*.gif","*.bmp","*.svg","*.webp")
+    "🖼️ Images"      = @("*.jpg","*.jpeg","*.png","*.gif","*.bmp","*.svg","*.webp")
     "📄 Documents"   = @("*.pdf","*.doc","*.docx","*.txt","*.xlsx","*.xls","*.pptx","*.ppt")
     "🎬 Videos"      = @("*.mp4","*.avi","*.mkv","*.mov","*.wmv","*.flv","*.webm")
     "🎵 Audios"      = @("*.mp3","*.wav","*.flac","*.aac","*.ogg","*.m4a")
@@ -47,11 +47,11 @@ foreach ($category in $categories.Keys) {
                 $destination = Join-Path $categoryPath $file.Name
                 Move-Item $file.FullName $destination -Force
 
-                Write-Host "   ✅ $($file.Name)" -ForegroundColor Green
+                Write-Host "   Moved $($file.Name)" -ForegroundColor Green
                 $filesMoved++
             }
             catch {
-                Write-Host "   ❌ Failed: $($file.Name)" -ForegroundColor Red
+                Write-Host "   Failed: $($file.Name)" -ForegroundColor Red
             }
         }
     }
