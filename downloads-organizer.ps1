@@ -91,10 +91,10 @@ foreach ($category in $categories.Keys) {
     }
 
     if ($categoryCount -eq 0) {
-        Write-Host "   ❕ No files found" -ForegroundColor Gray
+        Write-Host "   No files to move" -ForegroundColor Gray
     }
     else {
-        Write-Host "   📦 Moved $categoryCount file(s)" -ForegroundColor Cyan
+        Write-Host "   Moved $categoryCount file(s)" -ForegroundColor Cyan
     }
 
     Write-Host ""
