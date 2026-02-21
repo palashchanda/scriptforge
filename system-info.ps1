@@ -6,16 +6,12 @@ function Get-Color($percent) {
     else { "Red" }
 }
 
-# Initialize network counters (sum of all adapters)
-$prevRecv = (Get-NetAdapterStatistics | Measure-Object ReceivedBytes -Sum).Sum
-$prevSent = (Get-NetAdapterStatistics | Measure-Object SentBytes -Sum).Sum
-
 while ($true) {
 
 Clear-Host
 
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "        🖥 LIVE SYSTEM DASHBOARD" -ForegroundColor Yellow
+Write-Host "ℹ️ System Info" -ForegroundColor Yellow
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -26,7 +22,7 @@ $uptime = (Get-Date) - $os.LastBootUpTime
 Write-Host "👤 User        : $env:USERNAME" -ForegroundColor Green
 Write-Host "💻 Computer    : $env:COMPUTERNAME" -ForegroundColor Green
 Write-Host "🪟 OS          : $($os.Caption)" -ForegroundColor Green
-Write-Host "⏱ Uptime      : $($uptime.Days)d $($uptime.Hours)h $($uptime.Minutes)m" -ForegroundColor Green
+Write-Host "⌚ Uptime      : $($uptime.Days)d $($uptime.Hours)h $($uptime.Minutes)m" -ForegroundColor Green
 
 # IP Address
 $ip = Get-NetIPAddress -AddressFamily IPv4 |
@@ -47,7 +43,7 @@ $ramPercent = [math]::Round(($usedRAM / $totalRAM) * 100)
 $ramColor = Get-Color $ramPercent
 $ramBar = "█" * ($ramPercent/5) + "░" * (20-($ramPercent/5))
 
-Write-Host "🧠 RAM Usage  : $usedRAM / $totalRAM GB ($ramPercent%)" -ForegroundColor $ramColor
+Write-Host "👟 RAM Usage  : $usedRAM / $totalRAM GB ($ramPercent%)" -ForegroundColor $ramColor
 Write-Host "               [$ramBar]" -ForegroundColor DarkCyan
 
 # CPU
@@ -55,7 +51,7 @@ $cpu = Get-CimInstance Win32_Processor | Select-Object -ExpandProperty Name
 $cpuLoad = (Get-CimInstance Win32_Processor | Measure-Object LoadPercentage -Average).Average
 $cpuColor = Get-Color $cpuLoad
 
-Write-Host "⚙ CPU        : $cpu" -ForegroundColor Green
+Write-Host "🧠 CPU        : $cpu" -ForegroundColor Green
 Write-Host "🔥 CPU Load   : $cpuLoad %" -ForegroundColor $cpuColor
 
 # GPU
@@ -97,20 +93,47 @@ Get-PSDrive -PSProvider FileSystem | Where-Object {$_.Free -ne $null} | ForEach-
 Write-Host ""
 Write-Host "========== NETWORK ==========" -ForegroundColor Cyan
 
-# wait for interval to measure speed
-Start-Sleep -Seconds $refreshRate
+# Get active physical adapters only
+$adapters = Get-NetAdapter |
+    Where-Object { $_.Status -eq "Up" -and $_.HardwareInterface -eq $true }
 
-$currRecv = (Get-NetAdapterStatistics | Measure-Object ReceivedBytes -Sum).Sum
-$currSent = (Get-NetAdapterStatistics | Measure-Object SentBytes -Sum).Sum
+if (-not $adapters) {
+    Write-Host "No active network adapters" -ForegroundColor Red
+}
+else {
+    # capture start stats
+    $startStats = foreach ($adapter in $adapters) {
+        Get-NetAdapterStatistics -Name $adapter.Name
+    }
 
-$download = [math]::Round(($currRecv - $prevRecv) / 1KB / $refreshRate, 2)
-$upload   = [math]::Round(($currSent - $prevSent) / 1KB / $refreshRate, 2)
+    Start-Sleep -Seconds $refreshRate
 
-$prevRecv = $currRecv
-$prevSent = $currSent
+    # capture end stats
+    $endStats = foreach ($adapter in $adapters) {
+        Get-NetAdapterStatistics -Name $adapter.Name
+    }
 
-Write-Host "⬇ Download   : $download KB/s" -ForegroundColor Green
-Write-Host "⬆ Upload     : $upload KB/s" -ForegroundColor Green
+    $recv = 0
+    $sent = 0
+
+    for ($i=0; $i -lt $startStats.Count; $i++) {
+        $recv += ($endStats[$i].ReceivedBytes - $startStats[$i].ReceivedBytes)
+        $sent += ($endStats[$i].SentBytes - $startStats[$i].SentBytes)
+    }
+
+    $downKB = $recv / 1KB / $refreshRate
+    $upKB   = $sent / 1KB / $refreshRate
+
+    if ($downKB -gt 1024) { $down = "{0:N2} MB/s" -f ($downKB/1024) }
+    else { $down = "{0:N2} KB/s" -f $downKB }
+
+    if ($upKB -gt 1024) { $up = "{0:N2} MB/s" -f ($upKB/1024) }
+    else { $up = "{0:N2} KB/s" -f $upKB }
+
+    Write-Host "🌐 Adapter(s): $($adapters.Name -join ', ')" -ForegroundColor DarkCyan
+    Write-Host "⬇ Download   : $down" -ForegroundColor Green
+    Write-Host "⬆ Upload     : $up" -ForegroundColor Green
+}
 
 Write-Host ""
 Write-Host "Press CTRL + C to exit" -ForegroundColor DarkGray
