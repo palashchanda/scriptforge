@@ -1,33 +1,39 @@
 Clear-Host
-Write-Host "  Downloads Organizer" -ForegroundColor Yellow
+
+Write-Host "========================================" -ForegroundColor Cyan
+Write-Host "📂 Downloads Organizer" -ForegroundColor Yellow
+Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
 $downloadsPath = "$env:USERPROFILE\Downloads"
 
 # File categories
 $categories = @{
-    Images      = @("*.jpg","*.jpeg","*.png","*.gif","*.bmp","*.svg","*.webp")
-    Documents   = @("*.pdf","*.doc","*.docx","*.txt","*.xlsx","*.xls","*.pptx","*.ppt")
-    Videos      = @("*.mp4","*.avi","*.mkv","*.mov","*.wmv","*.flv","*.webm")
-    Audios      = @("*.mp3","*.wav","*.flac","*.aac","*.ogg","*.m4a")
-    Archives    = @("*.zip","*.rar","*.7z","*.tar","*.gz")
-    Installers  = @("*.exe","*.msi","*.dmg","*.pkg")
-    Code        = @("*.py","*.js","*.html","*.css","*.java","*.cpp","*.c","*.sh","*.ps1")
+    "🖼 Images"      = @("*.jpg","*.jpeg","*.png","*.gif","*.bmp","*.svg","*.webp")
+    "📄 Documents"   = @("*.pdf","*.doc","*.docx","*.txt","*.xlsx","*.xls","*.pptx","*.ppt")
+    "🎬 Videos"      = @("*.mp4","*.avi","*.mkv","*.mov","*.wmv","*.flv","*.webm")
+    "🎵 Audios"      = @("*.mp3","*.wav","*.flac","*.aac","*.ogg","*.m4a")
+    "📦 Archives"    = @("*.zip","*.rar","*.7z","*.tar","*.gz")
+    "💿 Installers"  = @("*.exe","*.msi","*.dmg","*.pkg")
+    "💻 Code"        = @("*.py","*.js","*.html","*.css","*.java","*.cpp","*.c","*.sh","*.ps1")
 }
 
-Write-Host "Scanning $downloadsPath..." -ForegroundColor Cyan
+Write-Host "🔍 Scanning: $downloadsPath" -ForegroundColor Cyan
 Write-Host ""
 
 $filesMoved = 0
 
 foreach ($category in $categories.Keys) {
 
-    $categoryPath = Join-Path $downloadsPath $category
+    # Remove emoji for folder name (optional)
+    $folderName = ($category -replace "^[^\w]+","").Trim()
+    $categoryPath = Join-Path $downloadsPath $folderName
 
-    # Create category folder if it doesn't exist
     if (-not (Test-Path $categoryPath)) {
         New-Item -ItemType Directory -Path $categoryPath | Out-Null
     }
+
+    Write-Host "⌛ Processing $category..." -ForegroundColor DarkCyan
 
     foreach ($extension in $categories[$category]) {
 
@@ -35,23 +41,24 @@ foreach ($category in $categories.Keys) {
 
         foreach ($file in $files) {
 
-            # Skip if file already inside a category folder
             if ($file.DirectoryName -ne $downloadsPath) { continue }
 
             try {
                 $destination = Join-Path $categoryPath $file.Name
+                Move-Item $file.FullName $destination -Force
 
-                Move-Item -Path $file.FullName -Destination $destination -Force
-
-                Write-Host "Moved: $($file.Name) -> $category" -ForegroundColor Green
+                Write-Host "   ✅ $($file.Name)" -ForegroundColor Green
                 $filesMoved++
             }
             catch {
-                Write-Host "Failed to move: $($file.Name)" -ForegroundColor Red
+                Write-Host "   ❌ Failed: $($file.Name)" -ForegroundColor Red
             }
         }
     }
+
+    Write-Host ""
 }
 
-Write-Host ""
-Write-Host "Organized $filesMoved files." -ForegroundColor Yellow
+Write-Host "========================================" -ForegroundColor Cyan
+Write-Host "✅ Organized $filesMoved file(s) successfully!" -ForegroundColor Yellow
+Write-Host "========================================" -ForegroundColor Cyan
