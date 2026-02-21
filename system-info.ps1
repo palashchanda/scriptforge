@@ -34,14 +34,14 @@ $ramPercent = [math]::Round(($usedRAM / $totalRAM) * 100)
 # Memory bar
 $ramBar = "█" * ($ramPercent / 5) + "░" * (20 - ($ramPercent / 5))
 
-Write-Host "🧠 RAM Usage  : $usedRAM / $totalRAM GB ($ramPercent%)" -ForegroundColor Green
+Write-Host "👟 RAM Usage  : $usedRAM / $totalRAM GB ($ramPercent%)" -ForegroundColor Green
 Write-Host "               [$ramBar]" -ForegroundColor DarkCyan
 
 # CPU Info
 $cpu = Get-CimInstance Win32_Processor | Select-Object -ExpandProperty Name
 $cpuLoad = (Get-CimInstance Win32_Processor | Measure-Object LoadPercentage -Average).Average
 
-Write-Host "⚙ CPU        : " -NoNewline -ForegroundColor Green
+Write-Host "🧠 CPU        : " -NoNewline -ForegroundColor Green
 Write-Host $cpu
 
 Write-Host "🔥 CPU Load   : " -NoNewline -ForegroundColor Green
