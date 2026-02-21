@@ -1,24 +1,25 @@
-$refreshRate = 2
+$refreshRate = 5
 
 function Get-Color($percent) {
-    if ($percent -lt 50) { return "Green" }
-    elseif ($percent -lt 80) { return "Yellow" }
-    else { return "Red" }
+    if ($percent -lt 50) { "Green" }
+    elseif ($percent -lt 80) { "Yellow" }
+    else { "Red" }
 }
 
-# Track network usage
-$netPrev = Get-NetAdapterStatistics | Where-Object {$_.ReceivedBytes -ne $null}
+# Initialize network counters (sum of all adapters)
+$prevRecv = (Get-NetAdapterStatistics | Measure-Object ReceivedBytes -Sum).Sum
+$prevSent = (Get-NetAdapterStatistics | Measure-Object SentBytes -Sum).Sum
 
 while ($true) {
 
 Clear-Host
 
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "ℹ️ System Info" -ForegroundColor Yellow
+Write-Host "        🖥 LIVE SYSTEM DASHBOARD" -ForegroundColor Yellow
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
-# OS Info
+# OS & uptime
 $os = Get-CimInstance Win32_OperatingSystem
 $uptime = (Get-Date) - $os.LastBootUpTime
 
@@ -28,9 +29,9 @@ Write-Host "🪟 OS          : $($os.Caption)" -ForegroundColor Green
 Write-Host "⏱ Uptime      : $($uptime.Days)d $($uptime.Hours)h $($uptime.Minutes)m" -ForegroundColor Green
 
 # IP Address
-$ip = (Get-NetIPAddress -AddressFamily IPv4 `
-      | Where-Object {$_.IPAddress -notlike "169.*" -and $_.InterfaceAlias -notmatch "Loopback"} `
-      | Select-Object -First 1 -ExpandProperty IPAddress)
+$ip = Get-NetIPAddress -AddressFamily IPv4 |
+      Where-Object {$_.IPAddress -notlike "169.*" -and $_.InterfaceAlias -notmatch "Loopback"} |
+      Select-Object -First 1 -ExpandProperty IPAddress
 
 Write-Host "🌐 IP Address  : $ip" -ForegroundColor Cyan
 
@@ -46,7 +47,7 @@ $ramPercent = [math]::Round(($usedRAM / $totalRAM) * 100)
 $ramColor = Get-Color $ramPercent
 $ramBar = "█" * ($ramPercent/5) + "░" * (20-($ramPercent/5))
 
-Write-Host "👟 RAM Usage  : $usedRAM / $totalRAM GB ($ramPercent%)" -ForegroundColor $ramColor
+Write-Host "🧠 RAM Usage  : $usedRAM / $totalRAM GB ($ramPercent%)" -ForegroundColor $ramColor
 Write-Host "               [$ramBar]" -ForegroundColor DarkCyan
 
 # CPU
@@ -54,28 +55,25 @@ $cpu = Get-CimInstance Win32_Processor | Select-Object -ExpandProperty Name
 $cpuLoad = (Get-CimInstance Win32_Processor | Measure-Object LoadPercentage -Average).Average
 $cpuColor = Get-Color $cpuLoad
 
-Write-Host "🧠 CPU        : $cpu" -ForegroundColor Green
+Write-Host "⚙ CPU        : $cpu" -ForegroundColor Green
 Write-Host "🔥 CPU Load   : $cpuLoad %" -ForegroundColor $cpuColor
 
-# GPU + VRAM
+# GPU
 $gpu = Get-CimInstance Win32_VideoController | Select-Object -First 1
-$gpuName = $gpu.Name
 $vram = [math]::Round($gpu.AdapterRAM / 1GB,2)
 
-Write-Host "🎮 GPU        : $gpuName" -ForegroundColor Green
+Write-Host "🎮 GPU        : $($gpu.Name)" -ForegroundColor Green
 Write-Host "🧩 VRAM       : $vram GB" -ForegroundColor Green
 
-# Temperature (if available)
-$temp = Get-WmiObject MSAcpi_ThermalZoneTemperature -ErrorAction SilentlyContinue |
-        Select-Object -First 1
+# Temperature (may not work on all systems)
+$tempObj = Get-WmiObject MSAcpi_ThermalZoneTemperature -ErrorAction SilentlyContinue | Select-Object -First 1
 
-if ($temp) {
-    $celsius = [math]::Round(($temp.CurrentTemperature / 10) - 273.15,1)
-    $tempColor = Get-Color $celsius
-    Write-Host "🌡️ Temp       : $celsius °C" -ForegroundColor $tempColor
-}
-else {
-    Write-Host "🌡️ Temp       : N/A" -ForegroundColor Gray
+if ($tempObj) {
+    $tempC = [math]::Round(($tempObj.CurrentTemperature / 10) - 273.15, 1)
+    $tempColor = Get-Color $tempC
+    Write-Host "🌡 Temp       : $tempC °C" -ForegroundColor $tempColor
+} else {
+    Write-Host "🌡 Temp       : N/A" -ForegroundColor Gray
 }
 
 Write-Host ""
@@ -99,19 +97,22 @@ Get-PSDrive -PSProvider FileSystem | Where-Object {$_.Free -ne $null} | ForEach-
 Write-Host ""
 Write-Host "========== NETWORK ==========" -ForegroundColor Cyan
 
-Start-Sleep -Milliseconds 500
-$netNow = Get-NetAdapterStatistics | Where-Object {$_.ReceivedBytes -ne $null}
+# wait for interval to measure speed
+Start-Sleep -Seconds $refreshRate
 
-$download = [math]::Round(($netNow.ReceivedBytes - $netPrev.ReceivedBytes) / 1KB,2)
-$upload   = [math]::Round(($netNow.SentBytes - $netPrev.SentBytes) / 1KB,2)
+$currRecv = (Get-NetAdapterStatistics | Measure-Object ReceivedBytes -Sum).Sum
+$currSent = (Get-NetAdapterStatistics | Measure-Object SentBytes -Sum).Sum
+
+$download = [math]::Round(($currRecv - $prevRecv) / 1KB / $refreshRate, 2)
+$upload   = [math]::Round(($currSent - $prevSent) / 1KB / $refreshRate, 2)
+
+$prevRecv = $currRecv
+$prevSent = $currSent
 
 Write-Host "⬇ Download   : $download KB/s" -ForegroundColor Green
 Write-Host "⬆ Upload     : $upload KB/s" -ForegroundColor Green
 
-$netPrev = $netNow
-
 Write-Host ""
 Write-Host "Press CTRL + C to exit" -ForegroundColor DarkGray
 
-Start-Sleep $refreshRate
 }
