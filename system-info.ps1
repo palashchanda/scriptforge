@@ -1,10 +1,5 @@
-# System Stats Display
-# Shows your computer's vital stats in a fun way
-
 Clear-Host
-Write-Host "================================" -ForegroundColor Cyan
 Write-Host "    System Info" -ForegroundColor Yellow
-Write-Host "================================" -ForegroundColor Cyan
 Write-Host ""
 
 # Computer name and user
@@ -24,31 +19,40 @@ $uptime = (Get-Date) - $os.LastBootUpTime
 Write-Host "System Uptime: " -NoNewline -ForegroundColor Green
 Write-Host "$($uptime.Days) days, $($uptime.Hours) hours, $($uptime.Minutes) minutes"
 
-# Memory
+# Memory (values returned in KB → convert to GB)
 $totalRAM = [math]::Round($os.TotalVisibleMemorySize / 1MB, 2)
-$freeRAM = [math]::Round($os.FreePhysicalMemory / 1MB, 2)
-$usedRAM = $totalRAM - $freeRAM
+$freeRAM  = [math]::Round($os.FreePhysicalMemory / 1MB, 2)
+$usedRAM  = [math]::Round($totalRAM - $freeRAM, 2)
+
 Write-Host "Memory Usage: " -NoNewline -ForegroundColor Green
 Write-Host "$usedRAM GB used of $totalRAM GB"
 
-# CPU
-$cpu = Get-CimInstance Win32_Processor
+# CPU Info
+$cpu = Get-CimInstance Win32_Processor | Select-Object -ExpandProperty Name
+$cpuLoad = (Get-CimInstance Win32_Processor | Measure-Object -Property LoadPercentage -Average).Average
+
 Write-Host "Processor: " -NoNewline -ForegroundColor Green
-Write-Host $cpu.Name
+Write-Host $cpu
+
+Write-Host "CPU Load: " -NoNewline -ForegroundColor Green
+Write-Host "$cpuLoad%"
 
 # Disk space
 Write-Host ""
 Write-Host "Disk Space:" -ForegroundColor Yellow
-Get-PSDrive -PSProvider FileSystem | Where-Object { $_.Used -gt 0 } | ForEach-Object {
-    $used = [math]::Round($_.Used / 1GB, 2)
-        $free = [math]::Round($_.Free / 1GB, 2)
-            $total = $used + $free
-                $percentUsed = [math]::Round(($used / $total) * 100, 1)
-                    Write-Host "  Drive $($_.Name): " -NoNewline -ForegroundColor Green
-                        Write-Host "$used GB used / $total GB total ($percentUsed% full)"
-                        }
 
-                        Write-Host ""
-                        Write-Host "================================" -ForegroundColor Cyan
+Get-PSDrive -PSProvider FileSystem | Where-Object { $_.Free -ne $null } | ForEach-Object {
 
-                        
+    $used = [math]::Round(($_.Used) / 1GB, 2)
+    $free = [math]::Round(($_.Free) / 1GB, 2)
+    $total = $used + $free
+
+    if ($total -gt 0) {
+        $percentUsed = [math]::Round(($used / $total) * 100, 1)
+    } else {
+        $percentUsed = 0
+    }
+
+    Write-Host "  Drive $($_.Name): " -NoNewline -ForegroundColor Green
+    Write-Host "$used GB used / $total GB total ($percentUsed% full)"
+}
