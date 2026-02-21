@@ -7,6 +7,28 @@ Write-Host ""
 
 $downloadsPath = "$env:USERPROFILE\Downloads"
 
+# Function: Prevent overwrite by renaming duplicates
+function Get-UniqueFileName {
+    param ($destinationPath)
+
+    if (-not (Test-Path $destinationPath)) {
+        return $destinationPath
+    }
+
+    $directory = Split-Path $destinationPath
+    $filename = [System.IO.Path]::GetFileNameWithoutExtension($destinationPath)
+    $extension = [System.IO.Path]::GetExtension($destinationPath)
+
+    $counter = 1
+    do {
+        $newName = "$filename ($counter)$extension"
+        $newPath = Join-Path $directory $newName
+        $counter++
+    } while (Test-Path $newPath)
+
+    return $newPath
+}
+
 # File categories
 $categories = @{
     "🖼️ Images"      = @("*.jpg","*.jpeg","*.png","*.gif","*.bmp","*.svg","*.webp")
@@ -21,11 +43,11 @@ $categories = @{
 Write-Host "🔍 Scanning: $downloadsPath" -ForegroundColor Cyan
 Write-Host ""
 
-$filesMoved = 0
+$totalMoved = 0
 
 foreach ($category in $categories.Keys) {
 
-    # Remove emoji for folder name (optional)
+    # Remove emoji from folder name
     $folderName = ($category -replace "^[^\w]+","").Trim()
     $categoryPath = Join-Path $downloadsPath $folderName
 
@@ -34,6 +56,8 @@ foreach ($category in $categories.Keys) {
     }
 
     Write-Host "⌛ Processing $category..." -ForegroundColor DarkCyan
+
+    $categoryCount = 0
 
     foreach ($extension in $categories[$category]) {
 
@@ -45,20 +69,37 @@ foreach ($category in $categories.Keys) {
 
             try {
                 $destination = Join-Path $categoryPath $file.Name
-                Move-Item $file.FullName $destination -Force
+                $uniqueDestination = Get-UniqueFileName $destination
 
-                Write-Host "   Moved $($file.Name)" -ForegroundColor Green
-                $filesMoved++
+                Move-Item $file.FullName $uniqueDestination
+
+                if ($uniqueDestination -ne $destination) {
+                    $newName = Split-Path $uniqueDestination -Leaf
+                    Write-Host "   Renamed → $newName" -ForegroundColor Yellow
+                }
+                else {
+                    Write-Host "   Moved $($file.Name)" -ForegroundColor Green
+                }
+
+                $categoryCount++
+                $totalMoved++
             }
             catch {
-                Write-Host "   Failed: $($file.Name)" -ForegroundColor Red
+                Write-Host "   Failed to move $($file.Name)" -ForegroundColor Red
             }
         }
+    }
+
+    if ($categoryCount -eq 0) {
+        Write-Host "   ❕ No files found" -ForegroundColor Gray
+    }
+    else {
+        Write-Host "   📦 Moved $categoryCount file(s)" -ForegroundColor Cyan
     }
 
     Write-Host ""
 }
 
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "✅ Organized $filesMoved file(s) successfully!" -ForegroundColor Yellow
+Write-Host "✅ Organized $totalMoved file(s) successfully!" -ForegroundColor Yellow
 Write-Host "========================================" -ForegroundColor Cyan
