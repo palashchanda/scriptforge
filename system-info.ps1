@@ -1,4 +1,4 @@
-$refreshRate = 5
+$refreshRate = 60
 
 function Get-Color($percent) {
     if ($percent -lt 50) { "Green" }
