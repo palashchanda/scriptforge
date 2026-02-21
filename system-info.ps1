@@ -89,53 +89,6 @@ Get-PSDrive -PSProvider FileSystem | Where-Object {$_.Free -ne $null} | ForEach-
     Write-Host "💽 Drive $($_.Name): $used / $total GB ($percent%)" -ForegroundColor $color
     Write-Host "               [$bar]" -ForegroundColor DarkCyan
 }
-
-Write-Host ""
-Write-Host "========== NETWORK ==========" -ForegroundColor Cyan
-
-# Get active physical adapters only
-$adapters = Get-NetAdapter |
-    Where-Object { $_.Status -eq "Up" -and $_.HardwareInterface -eq $true }
-
-if (-not $adapters) {
-    Write-Host "No active network adapters" -ForegroundColor Red
-}
-else {
-    # capture start stats
-    $startStats = foreach ($adapter in $adapters) {
-        Get-NetAdapterStatistics -Name $adapter.Name
-    }
-
-    Start-Sleep -Seconds $refreshRate
-
-    # capture end stats
-    $endStats = foreach ($adapter in $adapters) {
-        Get-NetAdapterStatistics -Name $adapter.Name
-    }
-
-    $recv = 0
-    $sent = 0
-
-    for ($i=0; $i -lt $startStats.Count; $i++) {
-        $recv += ($endStats[$i].ReceivedBytes - $startStats[$i].ReceivedBytes)
-        $sent += ($endStats[$i].SentBytes - $startStats[$i].SentBytes)
-    }
-
-    $downKB = $recv / 1KB / $refreshRate
-    $upKB   = $sent / 1KB / $refreshRate
-
-    if ($downKB -gt 1024) { $down = "{0:N2} MB/s" -f ($downKB/1024) }
-    else { $down = "{0:N2} KB/s" -f $downKB }
-
-    if ($upKB -gt 1024) { $up = "{0:N2} MB/s" -f ($upKB/1024) }
-    else { $up = "{0:N2} KB/s" -f $upKB }
-
-    Write-Host "🌐 Adapter(s): $($adapters.Name -join ', ')" -ForegroundColor DarkCyan
-    Write-Host "⬇ Download   : $down" -ForegroundColor Green
-    Write-Host "⬆ Upload     : $up" -ForegroundColor Green
-}
-
 Write-Host ""
 Write-Host "Press CTRL + C to exit" -ForegroundColor DarkGray
-
 }
