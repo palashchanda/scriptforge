@@ -51,30 +51,30 @@ function Get-UniqueFileName {
 
 # File categories
 $categories = @{
-    "📷 Images"      = @("*.jpg","*.jpeg","*.png","*.gif","*.bmp","*.svg","*.webp",
+    "Images"      = @("*.jpg","*.jpeg","*.png","*.gif","*.bmp","*.svg","*.webp",
                          "*.tiff","*.tif","*.ico","*.heic","*.raw")
 
-    "📄 Documents"   = @("*.pdf","*.doc","*.docx","*.txt","*.xlsx","*.xls","*.pptx","*.ppt",
+    "Documents"   = @("*.pdf","*.doc","*.docx","*.txt","*.xlsx","*.xls","*.pptx","*.ppt",
                          "*.odt","*.rtf","*.csv","*.epub","*.md")
 
-    "🎬 Videos"      = @("*.mp4","*.avi","*.mkv","*.mov","*.wmv","*.flv","*.webm",
+    "Videos"      = @("*.mp4","*.avi","*.mkv","*.mov","*.wmv","*.flv","*.webm",
                          "*.m4v","*.3gp","*.ts","*.mpeg")
 
-    "🎵 Audios"      = @("*.mp3","*.wav","*.flac","*.aac","*.ogg","*.m4a",
+    "Audios"      = @("*.mp3","*.wav","*.flac","*.aac","*.ogg","*.m4a",
                          "*.wma","*.aiff","*.opus")
 
-    "📦 Archives"    = @("*.zip","*.rar","*.7z","*.tar","*.gz","*.bz2","*.xz","*.zst")
+    "Archives"    = @("*.zip","*.rar","*.7z","*.tar","*.gz","*.bz2","*.xz","*.zst")
 
-    "💿 Installers"  = @("*.exe","*.msi","*.dmg","*.pkg")
+    "Installers"  = @("*.exe","*.msi","*.dmg","*.pkg")
 
-    "💻 Code"        = @("*.py","*.ipynb","*.java","*.js","*.json","*.html","*.css",
+    "Code"        = @("*.py","*.ipynb","*.java","*.js","*.json","*.html","*.css",
                          "*.cpp","*.c","*.sh","*.ps1","*.ts","*.tsx","*.jsx","*.xml",
                          "*.yaml","*.yml","*.sql","*.rb","*.go","*.rs","*.php",
                          "*.swift","*.kt")
 
-    "🖼️ Design"      = @("*.psd","*.ai","*.fig","*.sketch","*.blend","*.obj","*.stl")
+    "Design"      = @("*.psd","*.ai","*.fig","*.sketch","*.blend","*.obj","*.stl")
 
-    "🗄️ Data"        = @("*.db","*.sqlite","*.parquet")
+    "Data"        = @("*.db","*.sqlite","*.parquet")
 }
 
 Write-Host "🔍 Scanning: $targetPath" -ForegroundColor Cyan
