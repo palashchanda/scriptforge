@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ArbPay Auto-Buyer Pro
 // @namespace    http://tampermonkey.net/
-// @version      7.3
+// @version      8.0
 // @description  Professional auto-buyer for arbpay.me — premium UI, amount ranges, activity log, monthly reports
 // @author       Palash Chanda
 // @match        https://arbpay.me/*
@@ -22,23 +22,27 @@
     styleEl.textContent = `
         @keyframes arb-pulse{0%,100%{box-shadow:0 0 8px rgba(245,166,35,0.3)}50%{box-shadow:0 0 22px rgba(245,166,35,0.7)}}
         @keyframes arb-glow{0%,100%{opacity:1}50%{opacity:0.55}}
+        @keyframes arb-slideIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
         .arb-scanning{animation:arb-pulse 1.5s ease-in-out infinite}
-        .arb-log-entry{padding:2px 4px;border-bottom:1px solid rgba(255,255,255,0.04);font-size:10px;line-height:1.5;font-family:'SF Mono','Fira Code',Consolas,monospace}
-        .arb-log-scan{color:rgba(255,255,255,0.35)}.arb-log-switch{color:#60a5fa}.arb-log-found{color:#4ade80}
+        .arb-log-entry{padding:3px 6px;border-bottom:1px solid rgba(255,255,255,0.05);font-size:11px;line-height:1.6;font-family:'SF Mono','Fira Code',Consolas,monospace;animation:arb-slideIn 0.2s ease-out}
+        .arb-log-scan{color:rgba(255,255,255,0.4)}.arb-log-switch{color:#60a5fa}.arb-log-found{color:#4ade80}
         .arb-log-error{color:#f87171}.arb-log-info{color:#fbbf24}.arb-log-pay{color:#a78bfa}
-        .arb-btn{transition:all 0.15s ease}.arb-btn:hover{filter:brightness(1.15);transform:translateY(-1px)}.arb-btn:active{transform:translateY(0)}
-        .arb-input:focus{border-color:rgba(245,166,35,0.5)!important;outline:none}
-        .arb-select:focus{border-color:rgba(245,166,35,0.5)!important;outline:none}
-        .arb-scroll::-webkit-scrollbar{width:4px}.arb-scroll::-webkit-scrollbar-track{background:transparent}
-        .arb-scroll::-webkit-scrollbar-thumb{background:rgba(245,166,35,0.25);border-radius:2px}
+        .arb-btn{transition:all 0.2s cubic-bezier(0.4,0,0.2,1)}.arb-btn:hover{filter:brightness(1.2);transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,0.3)}.arb-btn:active{transform:translateY(0)}
+        .arb-btn:disabled{filter:grayscale(1);opacity:0.5;cursor:not-allowed;transform:none!important}
+        .arb-input:focus{border-color:rgba(245,166,35,0.5)!important;outline:none;box-shadow:0 0 0 2px rgba(245,166,35,0.1)}
+        .arb-select:focus{border-color:rgba(245,166,35,0.5)!important;outline:none;box-shadow:0 0 0 2px rgba(245,166,35,0.1)}
+        .arb-select{cursor:pointer}
+        .arb-scroll::-webkit-scrollbar{width:5px}.arb-scroll::-webkit-scrollbar-track{background:rgba(0,0,0,0.2)}
+        .arb-scroll::-webkit-scrollbar-thumb{background:rgba(245,166,35,0.3);border-radius:3px;transition:background 0.2s}
+        .arb-scroll::-webkit-scrollbar-thumb:hover{background:rgba(245,166,35,0.5)}
     `;
     document.head.appendChild(styleEl);
 
     // ── Design Tokens ────────────────────────────────────────────────────────
     const C = {
-        accent: "#F5A623", accentDim: "rgba(245,166,35,0.15)", accentBorder: "rgba(245,166,35,0.12)",
-        bg: "rgba(12,12,20,0.92)", bgDark: "rgba(18,18,28,0.95)", bgInput: "rgba(25,25,40,0.8)",
-        text: "#fff", textDim: "rgba(255,255,255,0.4)", border: "rgba(255,255,255,0.08)",
+        accent: "#F5A623", accentDim: "rgba(245,166,35,0.15)", accentBorder: "rgba(245,166,35,0.2)",
+        bg: "rgba(12,12,20,0.94)", bgDark: "rgba(18,18,28,0.96)", bgInput: "rgba(28,28,44,0.85)",
+        text: "#fff", textDim: "rgba(255,255,255,0.45)", border: "rgba(255,255,255,0.1)",
         green: "#4ade80", red: "#f87171", blue: "#60a5fa", purple: "#a78bfa",
         font: "'Inter',-apple-system,'Segoe UI',sans-serif",
         mono: "'SF Mono','Fira Code',Consolas,monospace",
@@ -193,10 +197,12 @@
     function renderLog() {
         if (!logContainer) return;
         logContainer.innerHTML = "";
+        const icons = { scan:"🔍", switch:"🔄", found:"✅", error:"❌", info:"ℹ️", pay:"💳" };
         for (const e of logEntries) {
             const div = document.createElement("div");
             div.className = `arb-log-entry arb-log-${e.type}`;
-            div.textContent = `${e.ts}  ${e.msg}`;
+            const icon = icons[e.type] || "•";
+            div.innerHTML = `<span style="opacity:0.5">${e.ts}</span>  <span style="margin-right:4px">${icon}</span>${e.msg}`;
             logContainer.appendChild(div);
         }
         logContainer.scrollTop = logContainer.scrollHeight;
@@ -235,13 +241,14 @@
     // ── Bubble ───────────────────────────────────────────────────────────────
     const bubble = document.createElement("div");
     Object.assign(bubble.style, {
-        position:"fixed",zIndex:"999999",width:"52px",height:"52px",borderRadius:"50%",
-        background:`linear-gradient(135deg, rgba(20,20,35,0.95), rgba(12,12,20,0.98))`,
-        border:`2px solid ${C.accentBorder}`,
+        position:"fixed",zIndex:"999999",width:"56px",height:"56px",borderRadius:"50%",
+        background:`linear-gradient(145deg, rgba(25,25,40,0.98), rgba(15,15,25,0.98))`,
+        border:`2px solid ${C.accent}`,
         color:C.text,fontFamily:C.mono,fontSize:"11px",
         display:"none",alignItems:"center",justifyContent:"center",flexDirection:"column",
         cursor:"pointer",pointerEvents:"auto",userSelect:"none",touchAction:"none",
-        boxShadow:"0 4px 20px rgba(0,0,0,0.6)",textAlign:"center",lineHeight:"1.3",
+        boxShadow:`0 6px 24px rgba(245,166,35,0.25), inset 0 1px rgba(255,255,255,0.1)`,
+        textAlign:"center",lineHeight:"1.3",transition:"all 0.3s cubic-bezier(0.4,0,0.2,1)",
     });
     document.body.appendChild(bubble);
 
@@ -249,11 +256,11 @@
     const overlay = document.createElement("div");
     Object.assign(overlay.style, {
         position:"fixed",zIndex:"999999",visibility:"hidden",
-        background:C.bg,backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",
+        background:C.bg,backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",
         color:C.text,fontFamily:C.font,fontSize:"12px",
-        padding:"12px 14px",borderRadius:"14px",lineHeight:"1.7",width:"260px",
+        padding:"16px 16px",borderRadius:"16px",lineHeight:"1.8",width:"280px",
         pointerEvents:"auto",userSelect:"none",touchAction:"none",
-        boxShadow:`0 8px 32px rgba(0,0,0,0.5), inset 0 1px rgba(255,255,255,0.05)`,
+        boxShadow:`0 12px 48px rgba(0,0,0,0.6), inset 0 1px rgba(255,255,255,0.08)`,
         border:`1px solid ${C.accentBorder}`,
         transition:"background 0.3s",
     });
@@ -275,27 +282,29 @@
     // ── UI Helpers ────────────────────────────────────────────────────────────
     function makeRow(label) {
         const row=document.createElement("div");
-        row.style.cssText="display:flex;justify-content:space-between;align-items:center;gap:6px;min-height:22px;";
+        row.style.cssText="display:flex;justify-content:space-between;align-items:center;gap:8px;min-height:26px;padding:4px 6px;border-radius:8px;transition:background 0.15s;";
         const lbl=document.createElement("span");
         lbl.textContent=label;
-        lbl.style.cssText=`color:${C.textDim};white-space:nowrap;font-size:11px;flex-shrink:0;font-weight:500;`;
+        lbl.style.cssText=`color:${C.textDim};white-space:nowrap;font-size:11px;flex-shrink:0;font-weight:500;letter-spacing:0.3px;`;
         const val=document.createElement("span");
-        val.style.cssText=`text-align:right;font-weight:600;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:${C.mono};`;
+        val.style.cssText=`text-align:right;font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:${C.mono};color:${C.text};text-shadow:0 0 10px rgba(0,0,0,0.5);`;
         row.append(lbl,val);
+        row.addEventListener("mouseenter",()=>{row.style.background="rgba(255,255,255,0.03)";});
+        row.addEventListener("mouseleave",()=>{row.style.background="transparent";});
         return {row,val};
     }
     function makeDivider() {
         const d=document.createElement("div");
-        d.style.cssText=`border-top:1px solid ${C.accentBorder};margin:6px 0;`;
+        d.style.cssText=`border-top:1px solid ${C.accentBorder};margin:8px 0;background:linear-gradient(90deg,transparent,${C.accentBorder},transparent);`;
         return d;
     }
     function makeBtn(text,bg,onClick) {
         const btn=document.createElement("button");
         Object.assign(btn.style, {
-            marginTop:"4px",width:"100%",padding:"6px 0",
-            background:bg,color:C.text,border:"none",borderRadius:"8px",
-            cursor:"pointer",fontFamily:C.font,fontSize:"12px",fontWeight:"600",
-            letterSpacing:"0.3px",
+            marginTop:"6px",width:"100%",padding:"8px 0",
+            background:bg,color:C.text,border:"none",borderRadius:"10px",
+            cursor:"pointer",fontFamily:C.font,fontSize:"12px",fontWeight:"700",
+            letterSpacing:"0.5px",boxShadow:"0 2px 8px rgba(0,0,0,0.3)",
         });
         btn.className="arb-btn";
         btn.textContent=text;
@@ -306,9 +315,9 @@
         const inp=document.createElement("input");
         Object.assign(inp.style, {
             width:"100%",background:C.bgInput,color:C.text,
-            border:`1px solid ${C.border}`,borderRadius:"6px",
-            fontFamily:C.mono,fontSize:"12px",padding:"4px 8px",
-            boxSizing:"border-box",transition:"border-color 0.2s",
+            border:`1px solid ${C.border}`,borderRadius:"8px",
+            fontFamily:C.mono,fontSize:"12px",padding:"6px 10px",
+            boxSizing:"border-box",transition:"all 0.2s",
         });
         inp.className="arb-input";
         inp.type=type; inp.placeholder=placeholder;
@@ -317,28 +326,30 @@
 
     // ── Header ───────────────────────────────────────────────────────────────
     const headerRow=document.createElement("div");
-    headerRow.style.cssText="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;cursor:pointer;padding:2px 0;";
+    headerRow.style.cssText="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;cursor:pointer;padding:8px 10px;background:rgba(245,166,35,0.08);border-radius:10px;border:1px solid rgba(245,166,35,0.15);transition:all 0.2s;";
     headerRow.title="Click to minimize";
     const headerTitle=document.createElement("span");
-    headerTitle.style.cssText=`font-size:11px;color:${C.accent};letter-spacing:1.5px;text-transform:uppercase;flex:1;font-weight:700;`;
-    headerTitle.textContent="⚡ AR AutoBuy";
+    headerTitle.style.cssText=`font-size:12px;color:${C.accent};letter-spacing:2px;text-transform:uppercase;flex:1;font-weight:700;text-shadow:0 0 20px rgba(245,166,35,0.5);`;
+    headerTitle.textContent="⚡ ARB AUTOBUY";
     const verSpan=document.createElement("span");
-    verSpan.style.cssText=`font-size:9px;color:${C.textDim};font-weight:500;`;
-    verSpan.textContent="v7.3";
+    verSpan.style.cssText=`font-size:9px;color:${C.textDim};font-weight:600;background:rgba(255,255,255,0.08);padding:2px 6px;border-radius:6px;`;
+    verSpan.textContent="v8.0";
     headerRow.append(headerTitle,verSpan);
     headerRow.addEventListener("click",()=>setCollapsed(true));
+    headerRow.addEventListener("mouseenter",()=>{headerRow.style.background="rgba(245,166,35,0.12)";});
+    headerRow.addEventListener("mouseleave",()=>{headerRow.style.background="rgba(245,166,35,0.08)";});
 
     // ── Tab System ───────────────────────────────────────────────────────────
     const tabBar=document.createElement("div");
-    tabBar.style.cssText="display:flex;gap:2px;margin-bottom:8px;";
+    tabBar.style.cssText="display:flex;gap:3px;margin-bottom:12px;background:rgba(0,0,0,0.2);padding:4px;border-radius:10px;";
     const tabContents={};
     function makeTab(id,label) {
         const btn=document.createElement("button");
         Object.assign(btn.style, {
-            flex:"1",padding:"4px 0",background:"transparent",
-            color:C.textDim,border:"none",borderBottom:`2px solid transparent`,
+            flex:"1",padding:"6px 4px",background:"transparent",
+            color:C.textDim,border:"none",borderRadius:"8px",
             cursor:"pointer",fontFamily:C.font,fontSize:"10px",fontWeight:"600",
-            letterSpacing:"0.5px",transition:"all 0.2s",
+            letterSpacing:"0.8px",transition:"all 0.2s cubic-bezier(0.4,0,0.2,1)",
         });
         btn.textContent=label; btn.dataset.tabId=id;
         tabBar.appendChild(btn);
@@ -352,8 +363,8 @@
         Object.entries(tabContents).forEach(([k,{btn,content}])=>{
             const on=k===id;
             content.style.display=on?"block":"none";
-            btn.style.color=on?C.accent:C.textDim;
-            btn.style.borderBottomColor=on?C.accent:"transparent";
+            btn.style.color=on?C.text:C.textDim;
+            btn.style.background=on?"rgba(245,166,35,0.2)":"transparent";
         });
     }
     tabBar.addEventListener("click",e=>{ const id=e.target.dataset.tabId; if(id) switchTab(id); });
@@ -370,8 +381,8 @@
     const speedSelect=document.createElement("select");
     Object.assign(speedSelect.style, {
         width:"130px",background:C.bgInput,color:C.text,
-        border:`1px solid ${C.border}`,borderRadius:"6px",
-        fontFamily:C.mono,fontSize:"11px",padding:"3px 6px",
+        border:`1px solid ${C.border}`,borderRadius:"8px",
+        fontFamily:C.mono,fontSize:"11px",padding:"6px 10px",cursor:"pointer",
     });
     speedSelect.className="arb-select";
     Object.entries(SPEED_PRESETS).forEach(([k,p])=>{
@@ -383,20 +394,20 @@
 
     // Amount input (text for range support)
     const amountRow=document.createElement("div");
-    amountRow.style.cssText="display:flex;justify-content:space-between;align-items:center;gap:6px;min-height:22px;";
+    amountRow.style.cssText="display:flex;justify-content:space-between;align-items:center;gap:8px;min-height:26px;";
     const amountLbl=document.createElement("span");
     amountLbl.textContent="Amount";
-    amountLbl.style.cssText=`color:${C.textDim};white-space:nowrap;font-size:11px;flex-shrink:0;font-weight:500;`;
+    amountLbl.style.cssText=`color:${C.textDim};white-space:nowrap;font-size:11px;flex-shrink:0;font-weight:500;letter-spacing:0.3px;`;
     const amountInput=document.createElement("input");
     Object.assign(amountInput.style, {
         width:"110px",background:C.bgInput,color:C.text,
-        border:`1px solid ${C.border}`,borderRadius:"6px",
-        fontFamily:C.mono,fontSize:"12px",padding:"3px 8px",textAlign:"right",
-        transition:"border-color 0.2s",
+        border:`1px solid ${C.border}`,borderRadius:"8px",
+        fontFamily:C.mono,fontSize:"12px",padding:"6px 10px",textAlign:"right",
+        transition:"all 0.2s",boxShadow:"inset 0 1px 3px rgba(0,0,0,0.3)",
     });
     amountInput.className="arb-input";
     amountInput.type="text"; amountInput.value=amountRaw;
-    amountInput.placeholder="110 or 100-120";
+    amountInput.placeholder="110";
     amountInput.addEventListener("change",()=>{
         amountRaw=amountInput.value.trim();
         amountMatcher=buildMatcher(amountRaw);
@@ -407,15 +418,16 @@
 
     // UPI dropdown
     const upiRow=document.createElement("div");
-    upiRow.style.cssText="display:flex;justify-content:space-between;align-items:center;gap:6px;min-height:22px;";
+    upiRow.style.cssText="display:flex;justify-content:space-between;align-items:center;gap:8px;min-height:26px;";
     const upiLbl=document.createElement("span");
     upiLbl.textContent="UPI";
-    upiLbl.style.cssText=`color:${C.textDim};white-space:nowrap;font-size:11px;flex-shrink:0;font-weight:500;`;
+    upiLbl.style.cssText=`color:${C.textDim};white-space:nowrap;font-size:11px;flex-shrink:0;font-weight:500;letter-spacing:0.3px;`;
     const upiDropdown=document.createElement("select");
     Object.assign(upiDropdown.style, {
         width:"150px",background:C.bgInput,color:C.text,
-        border:`1px solid ${C.border}`,borderRadius:"6px",
-        fontFamily:C.mono,fontSize:"11px",padding:"3px 6px",
+        border:`1px solid ${C.border}`,borderRadius:"8px",
+        fontFamily:C.mono,fontSize:"11px",padding:"6px 10px",cursor:"pointer",
+        boxShadow:"inset 0 1px 3px rgba(0,0,0,0.3)",
     });
     upiDropdown.className="arb-select";
     const phOpt=document.createElement("option"); phOpt.value=""; phOpt.textContent="— not loaded —"; phOpt.disabled=true;
@@ -423,26 +435,28 @@
     upiDropdown.addEventListener("change",()=>{ selectedUPI=upiDropdown.value; localStorage.setItem(KEY_UPI,selectedUPI); });
     upiRow.append(upiLbl,upiDropdown);
 
-    const startStopBtn=makeBtn("▶  START","linear-gradient(135deg,rgba(34,197,94,0.85),rgba(21,128,61,0.9))",toggleCycling);
-    startStopBtn.disabled=true; startStopBtn.style.opacity="0.4"; startStopBtn.style.cursor="not-allowed"; startStopBtn.style.marginTop="8px";
+    const startStopBtn=makeBtn("▶  START","linear-gradient(135deg,rgba(34,197,94,0.9),rgba(21,128,61,1))",toggleCycling);
+    startStopBtn.disabled=true; startStopBtn.style.opacity="0.4"; startStopBtn.style.cursor="not-allowed"; startStopBtn.style.marginTop="10px";
+    startStopBtn.style.boxShadow="0 4px 14px rgba(34,197,94,0.3)";
 
     // Login section
     const loginSection=document.createElement("div"); loginSection.style.display="none";
     const credFields=document.createElement("div"); credFields.style.display="none";
-    const phoneInp=makeInput("Phone number");
-    const passInp=makeInput("Password","password");
-    const saveCredsBtn=makeBtn("💾 Save","rgba(26,74,122,0.8)",()=>{
+    const phoneInp=makeInput("📱 Phone number");
+    const passInp=makeInput("🔒 Password","password");
+    const saveCredsBtn=makeBtn("💾 Save Credentials","linear-gradient(135deg,rgba(37,99,235,0.8),rgba(29,78,216,0.9))",()=>{
         const p=phoneInp.value.trim(),pw=passInp.value.trim();
         if(!p||!pw) return; saveCreds(p,pw); phoneInp.value=""; passInp.value="";
         credFields.style.display="none"; updateCredsBtn.textContent="✏️ Update credentials";
+        addLog("info","Credentials saved");
     });
     credFields.append(phoneInp,passInp,saveCredsBtn);
-    const autoLoginBtn=makeBtn("🔐 Auto Login","rgba(26,90,42,0.8)",()=>{
+    const autoLoginBtn=makeBtn("🔐 Auto Login","linear-gradient(135deg,rgba(34,197,94,0.8),rgba(21,128,61,0.9))",()=>{
         const c=loadCreds(); if(!c){credFields.style.display="block";return;} doAutoLogin(c);
     });
-    const updateCredsBtn=makeBtn("✏️ Update credentials","rgba(58,58,26,0.8)",()=>{
+    const updateCredsBtn=makeBtn("✏️ Update credentials","linear-gradient(135deg,rgba(107,114,128,0.8),rgba(75,85,99,0.9))",()=>{
         const s=credFields.style.display!=="none"; credFields.style.display=s?"none":"block";
-        updateCredsBtn.textContent=s?"✏️ Update credentials":"✕ Cancel";
+        updateCredsBtn.textContent=s?"✕ Cancel":"✏️ Update credentials";
     });
     loginSection.append(makeDivider(),credFields,autoLoginBtn,updateCredsBtn);
 
@@ -453,8 +467,8 @@
     // ══════════════════════════════════════════════════════════════════════════
     const dailyContent=makeTab("daily","DAILY");
     const infoNote=document.createElement("div");
-    infoNote.style.cssText=`font-size:10px;color:${C.textDim};text-align:center;padding:2px 0 6px;`;
-    infoNote.textContent="ℹ️ Open Transaction page to update (deep scan once daily)";
+    infoNote.style.cssText=`font-size:10px;color:${C.textDim};text-align:center;padding:6px 8px;background:rgba(245,166,35,0.08);border-radius:8px;border:1px solid rgba(245,166,35,0.15);margin-bottom:8px;`;
+    infoNote.textContent="ℹ️ Open Transaction page to update stats";
     const {row:buysRow,val:buysVal}=makeRow("Buys");
     const {row:buyTotalRow,val:buyTotalVal}=makeRow("Buy amount");
     const {row:bonusRow,val:bonusVal}=makeRow("Buy-in bonus");
@@ -464,22 +478,22 @@
 
     // Tier pills
     const tiersRow=document.createElement("div");
-    tiersRow.style.cssText="display:flex;justify-content:space-between;align-items:center;gap:4px;min-height:22px;padding:2px 0;";
+    tiersRow.style.cssText="display:flex;justify-content:space-between;align-items:center;gap:4px;min-height:26px;padding:4px 0;";
     const tierLbl=document.createElement("span");
-    tierLbl.style.cssText=`color:${C.textDim};white-space:nowrap;font-size:11px;flex-shrink:0;font-weight:500;`;
+    tierLbl.style.cssText=`color:${C.textDim};white-space:nowrap;font-size:11px;flex-shrink:0;font-weight:500;letter-spacing:0.3px;`;
     tierLbl.textContent="Tasks";
     const tierPills=document.createElement("div"); tierPills.style.cssText="display:flex;gap:4px;";
     const tierSpans={};
     DAILY_TIERS.forEach(tier=>{
         const pill=document.createElement("span");
-        pill.style.cssText=`display:inline-block;padding:2px 7px;border-radius:10px;font-size:10px;font-weight:700;
-            background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.3);transition:all 0.4s;font-family:${C.mono};`;
+        pill.style.cssText=`display:inline-block;padding:3px 8px;border-radius:8px;font-size:10px;font-weight:700;
+            background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.4);transition:all 0.3s cubic-bezier(0.4,0,0.2,1);font-family:${C.mono};border:1px solid rgba(255,255,255,0.1);`;
         pill.textContent=tier; tierSpans[tier]=pill; tierPills.appendChild(pill);
     });
     tiersRow.append(tierLbl,tierPills);
     const allDoneBanner=document.createElement("div");
-    allDoneBanner.style.cssText=`display:none;text-align:center;font-size:11px;font-weight:700;color:${C.green};padding:2px 0;margin-bottom:4px;`;
-    allDoneBanner.textContent="✅ All tasks done!";
+    allDoneBanner.style.cssText=`display:none;text-align:center;font-size:11px;font-weight:700;color:${C.green};padding:6px 10px;background:rgba(74,222,128,0.1);border-radius:8px;border:1px solid rgba(74,222,128,0.2);margin-bottom:6px;animation:arb-slideIn 0.3s ease-out;`;
+    allDoneBanner.textContent="✅ All tasks completed!";
 
     function allTiersComplete() { return daily.buyCount >= DAILY_TIERS[DAILY_TIERS.length-1]; }
     function updateTierPills() {
@@ -503,13 +517,14 @@
     const monthSelectorRow=document.createElement("div");
     monthSelectorRow.style.cssText="display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:6px;";
     const monthSelectorLbl=document.createElement("span");
-    monthSelectorLbl.style.cssText=`color:${C.textDim};font-size:11px;font-weight:500;white-space:nowrap;`;
+    monthSelectorLbl.style.cssText=`color:${C.textDim};font-size:11px;font-weight:500;white-space:nowrap;letter-spacing:0.3px;`;
     monthSelectorLbl.textContent="Month";
     const monthSelect=document.createElement("select");
     Object.assign(monthSelect.style,{
         flex:"1",background:C.bgInput,color:C.text,
-        border:`1px solid ${C.border}`,borderRadius:"6px",
-        fontFamily:C.mono,fontSize:"11px",padding:"3px 6px",
+        border:`1px solid ${C.border}`,borderRadius:"8px",
+        fontFamily:C.mono,fontSize:"11px",padding:"6px 10px",cursor:"pointer",
+        boxShadow:"inset 0 1px 3px rgba(0,0,0,0.3)",
     });
     monthSelect.className="arb-select";
     function rebuildMonthSelector() {
@@ -550,7 +565,7 @@
         mUpdatedVal.style.fontSize="10px";
     }
 
-    const scanMonthBtn=makeBtn("📊 Scan Full Month","rgba(60,60,120,0.8)",()=>{
+    const scanMonthBtn=makeBtn("📊 Scan Full Month","linear-gradient(135deg,rgba(99,102,241,0.8),rgba(79,70,229,0.9))",()=>{
         if(!isTransactionPage()){addLog("error","Navigate to Transaction page first");return;}
         tranScanInProgress=false; parseTransactionPage(true);
         addLog("info","Full month scan started...");
@@ -575,7 +590,7 @@
         a.download=`arbpay_${mk}.csv`; a.click();
         addLog("info",`Exported ${txns.length} transactions for ${mk}`);
     }
-    const exportCSVBtn=makeBtn("⬇️ Export CSV","rgba(20,80,60,0.8)",exportMonthCSV);
+    const exportCSVBtn=makeBtn("⬇️ Export CSV","linear-gradient(135deg,rgba(20,83,45,0.8),rgba(21,128,61,0.9))",exportMonthCSV);
 
     monthlyContent.append(monthSelectorRow,monthLabel,mBuysRow,mBuyAmtRow,mBonusRow,mRebateRow,makeDivider(),mSellRow,mSellAmtRow,makeDivider(),mUpdatedRow,scanMonthBtn,exportCSVBtn);
 
@@ -587,9 +602,10 @@
     logContainer.className="arb-scroll";
     Object.assign(logContainer.style, {
         maxHeight:"280px",overflowY:"auto",overflowX:"hidden",
-        background:"rgba(0,0,0,0.3)",borderRadius:"6px",padding:"4px",
+        background:"rgba(0,0,0,0.4)",borderRadius:"10px",padding:"6px",
+        border:"1px solid rgba(255,255,255,0.08)",
     });
-    const clearLogBtn=makeBtn("🗑️ Clear","rgba(80,30,30,0.6)",()=>{ logEntries.length=0; renderLog(); });
+    const clearLogBtn=makeBtn("🗑️ Clear Log","linear-gradient(135deg,rgba(220,38,38,0.8),rgba(185,28,28,0.9))",()=>{ logEntries.length=0; renderLog(); addLog("info","Log cleared"); });
     logContent.append(logContainer,clearLogBtn);
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -613,14 +629,14 @@
         if(!isBubble) return;
         if(cycling){
             const t=formatTimer(buyTimerSeconds);
-            bubble.innerHTML=`<div style="font-size:12px;font-weight:700;color:${C.accent}">${t||"..."}</div>`;
-            bubble.style.background=`linear-gradient(135deg,rgba(20,20,35,0.95),rgba(12,12,20,0.98))`;
+            bubble.innerHTML=`<div style="font-size:11px;font-weight:700;color:${C.accent};text-shadow:0 0 10px rgba(245,166,35,0.5)">${t||"..."}</div>`;
+            bubble.style.background=`linear-gradient(145deg, rgba(25,25,40,0.98), rgba(15,15,25,0.98))`;
             bubble.classList.add("arb-scanning");
         } else if(paymentClicked){
-            bubble.innerHTML=`<div style="font-size:22px">💵</div>`;
+            bubble.innerHTML=`<div style="font-size:24px;filter:drop-shadow(0 0 8px rgba(245,166,35,0.6))">💵</div>`;
             bubble.classList.remove("arb-scanning");
         } else {
-            bubble.innerHTML=`<div style="font-size:22px">⏸️</div>`;
+            bubble.innerHTML=`<div style="font-size:24px;opacity:0.8">⏸️</div>`;
             bubble.classList.remove("arb-scanning");
         }
     }
@@ -667,6 +683,7 @@
         else if(status.includes("✅")||status.includes("💳")) color=C.blue;
         else if(status.includes("⚠️")) color=C.accent;
         statusVal.textContent=status; statusVal.style.color=color;
+        statusVal.style.textShadow=`0 0 20px ${color}40`;
         timerVal.textContent=buyTimerSeconds>0?formatTimer(buyTimerSeconds):"";
         clicksVal.textContent=sessClicks>0?`${sessClicks}`:"";
         // Daily
@@ -680,13 +697,22 @@
         // Monthly
         refreshMonthlyDisplay();
         // Buttons
-        if(cycling){startStopBtn.textContent="⏹  STOP";startStopBtn.style.background="linear-gradient(135deg,#ef4444,#b91c1c)";}
-        else if(!startStopBtn.disabled){startStopBtn.textContent="▶  START";startStopBtn.style.background="linear-gradient(135deg,rgba(34,197,94,0.85),rgba(21,128,61,0.9))";}
+        if(cycling){
+            startStopBtn.textContent="⏹  STOP";
+            startStopBtn.style.background="linear-gradient(135deg,#ef4444,#b91c1c)";
+            startStopBtn.style.boxShadow="0 4px 14px rgba(239,68,68,0.4)";
+        }
+        else if(!startStopBtn.disabled){
+            startStopBtn.textContent="▶  START";
+            startStopBtn.style.background="linear-gradient(135deg,rgba(34,197,94,0.9),rgba(21,128,61,1))";
+            startStopBtn.style.boxShadow="0 4px 14px rgba(34,197,94,0.3)";
+        }
         updateBubble();
     }
     function flashOverlay(color="rgba(245,166,35,0.2)") {
         overlay.style.background=color;
-        setTimeout(()=>{overlay.style.background=C.bg;updateBubble();},700);
+        overlay.style.transition="background 0.15s";
+        setTimeout(()=>{overlay.style.background=C.bg;updateBubble();},500);
     }
     function setButtonEnabled(en) {
         startStopBtn.disabled=!en; startStopBtn.style.opacity=en?"1":"0.4";
@@ -925,7 +951,7 @@
         if(isPaymentPageLoaded()){stopCycling();return;}
         if(hasOrderPendingDialog()){
             cycling=false;clearTimeout(cycleTimer);clearTimeout(scanTimer);stopBuyTimer();
-            playAlert();setUI("⚠️ Order pending");addLog("error","Order not completed dialog detected!");return;
+            setUI("⚠️ Order pending");addLog("error","Order not completed dialog detected!");return;
         }
         const sp=getSpeed();
         const label=TARGET_TABS[cycleIndex%TARGET_TABS.length];
@@ -1016,7 +1042,7 @@
 
         // Dialog detection (only when not cycling — watchPage handles it; cycleStep also checks)
         if(!cycling&&onBuyPage&&hasOrderPendingDialog()){
-            playAlert(); setUI("⚠️ Order pending");
+            setUI("⚠️ Order pending");
         }
 
         if(!cycling&&!onPayPage&&!onTranPage) setUI("⏹ Stopped");
