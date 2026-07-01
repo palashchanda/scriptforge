@@ -486,15 +486,44 @@
     const scanStateLabel=document.createElement("div");
     scanStateLabel.style.cssText=`font-size:9px;color:${C.textDim};text-align:center;padding:2px 0;`;
 
-    const rescanBtn=makeBtn("↺ Full Scan","linear-gradient(135deg,rgba(59,130,246,0.7),rgba(37,99,235,0.8))",()=>{
-        if(!isTransactionPage()){ alert("Navigate to Transaction page first."); return; }
-        const mk=getMonthKey();
-        setMonthScan(mk,{complete:false,lastTime:null});
-        tranScanInProgress=false;
-        runTransactionScan(true);
-    });
+    const scanBtnRow=document.createElement("div");
+    scanBtnRow.style.cssText="display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;";
 
-    statsContent.append(calHeader,calDowRow,calGrid,makeDivider(),daySection,makeDivider(),monthSection,scanStateLabel,rescanBtn);
+    function makeScanBtn(label,onClick){
+        const btn=makeBtn(label,"linear-gradient(135deg,rgba(59,130,246,0.7),rgba(37,99,235,0.8))",onClick);
+        btn.style.marginTop="0"; btn.style.fontSize="10px"; btn.style.padding="6px 0"; btn.style.letterSpacing="0.3px";
+        return btn;
+    }
+    function guardScan(fn){
+        return ()=>{ if(!isTransactionPage()){ alert("Navigate to Transaction page first."); return; } tranScanInProgress=false; fn(); };
+    }
+
+    const todayScanBtn   =makeScanBtn("Today",     guardScan(()=>runTransactionScan({stopDate:getTodayKey()})));
+    const monthScanBtn   =makeScanBtn("This Month", guardScan(()=>runTransactionScan({stopDate:getMonthKey()})));
+    const customToggleBtn=makeScanBtn("Custom ▾",   ()=>{ customDateRow.style.display=customDateRow.style.display==="none"?"flex":"none"; });
+    scanBtnRow.append(todayScanBtn,monthScanBtn,customToggleBtn);
+
+    const customDateRow=document.createElement("div");
+    customDateRow.style.cssText="display:none;gap:4px;margin-top:4px;align-items:center;";
+
+    const customDateInput=document.createElement("input");
+    customDateInput.type="date"; customDateInput.value=getTodayKey();
+    Object.assign(customDateInput.style,{
+        flex:"1",background:"rgba(18,22,40,0.9)",color:C.text,
+        border:`1px solid ${C.border}`,borderRadius:"7px",
+        fontFamily:C.mono,fontSize:"10px",padding:"4px 7px",
+        boxSizing:"border-box",colorScheme:"dark",
+    });
+    customDateInput.className="arb-input";
+
+    const goScanBtn=makeScanBtn("▶ Scan", guardScan(()=>{
+        const d=customDateInput.value; if(!d) return;
+        runTransactionScan({stopDate:d}); customDateRow.style.display="none";
+    }));
+    goScanBtn.style.flex="0 0 68px";
+    customDateRow.append(customDateInput,goScanBtn);
+
+    statsContent.append(calHeader,calDowRow,calGrid,makeDivider(),daySection,makeDivider(),monthSection,scanStateLabel,scanBtnRow,customDateRow);
 
     // ── Calendar render ───────────────────────────────────────────────────────
     function renderDayDetail(dateKey) {
@@ -523,7 +552,7 @@
         mBonV.textContent=fmtAmt(s.buyBonus);
         mRewV.textContent=fmtAmt(s.sellReward);
         const scan=getMonthScan(mk);
-        scanStateLabel.textContent=scan.complete?`✓ Complete · ${scan.lastTime||""}`:scan.lastTime?`↑ ${scan.lastTime}`:"Not scanned — visit Transactions";
+        scanStateLabel.textContent=scan.lastTime?`↑ Last scanned ${scan.lastTime}`:"Not scanned yet";
     }
 
     function renderCalendar() {
@@ -612,7 +641,7 @@
     // ── Draggable ──────────────────────────────────────────────────────────────
     function makeDraggable(el,isOverlay) {
         let dragging=false,ox=0,oy=0,moved=false;
-        const clickOnly=new Set([startStopBtn,upiDropdown,amountInput,autoLoginBtn,updateCredsBtn,saveCredsBtn,phoneInp,passInp,headerRow,headerTitle,tabBar,rescanBtn,calPrevBtn,calNextBtn]);
+        const clickOnly=new Set([startStopBtn,upiDropdown,amountInput,autoLoginBtn,updateCredsBtn,saveCredsBtn,phoneInp,passInp,headerRow,headerTitle,tabBar,todayScanBtn,monthScanBtn,customToggleBtn,goScanBtn,customDateInput,calPrevBtn,calNextBtn]);
         function isClickOnly(t){ return clickOnly.has(t)||tabBar.contains(t)||headerRow.contains(t)||calGrid.contains(t)||calHeader.contains(t); }
         el.addEventListener("pointerdown",e=>{
             if(isClickOnly(e.target)) return;
@@ -680,12 +709,14 @@
     }
 
     // ── Transaction scan ──────────────────────────────────────────────────────
-    function runTransactionScan(isFullScan=false) {
+    // stopDate: date prefix string — scan stops when timeStr falls before it
+    //   "2026-05-10" = today only | "2026-05" = this month | null = full year
+    // cursor: incremental stop — stop when timeStr < cursor (auto-scan from watchPage)
+    function runTransactionScan({ stopDate=null, cursor=null }={}) {
         if(tranScanInProgress) return;
         tranScanInProgress=true;
 
         const currentMk=getMonthKey();
-        const cursor=isFullScan?null:(getMonthScan(currentMk).lastTime||null);
         const currentYear=String(getISTDate().getFullYear());
 
         const collected={}; // mk → txn[]
@@ -713,9 +744,9 @@
                 if(sessionSeen.has(txnKey)) continue;
                 sessionSeen.add(txnKey);
                 if(!newestTime) newestTime=timeStr;
-                // Stop: hit cursor (incremental) or past this year (full)
-                if(!isFullScan&&cursor&&timeStr<cursor){ done=true; break; }
-                if(timeStr.slice(0,4)<currentYear){ done=true; break; }
+                if(cursor&&timeStr<cursor){ done=true; break; }
+                if(stopDate&&timeStr.slice(0,stopDate.length)<stopDate){ done=true; break; }
+                if(!stopDate&&!cursor&&timeStr.slice(0,4)<currentYear){ done=true; break; }
                 const mk=timeStr.slice(0,7);
                 if(!collected[mk]) collected[mk]=[];
                 collected[mk].push({type,amount,time:timeStr,order:orderNum});
@@ -740,15 +771,11 @@
                 setMonthTxns(mk,merged);
             });
             if(isFinal){
-                const state=loadScanState();
-                if(isFullScan){
-                    Object.keys(collected).forEach(mk=>{
-                        state[mk]=mk===currentMk?{complete:false,lastTime:newestTime||ts}:{complete:true,lastTime:ts};
-                    });
-                } else if(newestTime){
-                    state[currentMk]={complete:false,lastTime:newestTime};
+                if(newestTime){
+                    const state=loadScanState();
+                    state[currentMk]={lastTime:newestTime};
+                    saveScanState(state);
                 }
-                saveScanState(state);
                 pendingBuy=null;
                 tranScanInProgress=false;
             }
@@ -924,7 +951,7 @@
                 setTimeout(()=>{
                     if(isTransactionPage()&&!tranScanInProgress){
                         lastTranScanTime=Date.now();
-                        runTransactionScan(!scan.lastTime);
+                        runTransactionScan({ cursor: scan.lastTime||null });
                     }
                 },delay);
             }
