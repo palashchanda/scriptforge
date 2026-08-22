@@ -1,10 +1,10 @@
 // ==UserScript==
-// @name         ArbPay Auto-Buyer Pro
+// @name         ArbPay Auto-Clicker
 // @namespace    http://tampermonkey.net/
-// @version      10.0
-// @description  Auto-buyer for arbpay.me — calendar stats, incremental scan
+// @version      10.2
+// @description  Auto-clicker for arbpay.co — calendar stats, incremental scan
 // @author       Palash Chanda
-// @match        https://arbpay.me/*
+// @match        https://arbpay.co/*
 // @grant        none
 // ==/UserScript==
 
@@ -79,10 +79,12 @@
     }
 
     const TARGET_TABS = ["Default", "Large"];
+    const PREFERRED_PAYMENT_TAB = "OTP-UPI"; // payment method tab to stay on
 
     const SEL = {
-        filterContainer: ".x-buyList-filter",
-        filterItems:     ".x-buyList-filter .item",
+        amountBtn:       "button.amount",
+        popoverAction:   ".van-popover__action",
+        paymentTab:      ".van-tabs__nav .van-tab",
         optionsList:     ".x-buyList-list",
         optionItem:      ".item.mb32",
         buyButton:       "button.x-btn",
@@ -145,7 +147,7 @@
     // ── UI state ──────────────────────────────────────────────────────────────
     let cycling=false, cycleTimer=null, scanTimer=null, cycleIndex=0;
     let paymentClicked=false;
-    let buyTimerInterval=null, buyTimerSeconds=0, countdownInterval=null;
+    let buyTimerInterval=null, buyTimerSeconds=0, buyTimerStart=null, countdownInterval=null;
     let selectedUPI=localStorage.getItem(KEY_UPI)||null;
     let sessClicks=0;
     let completedWatched=false, completedWatchInterval=null, completedAlreadyCounted=false;
@@ -278,10 +280,10 @@
     headerRow.title="Click to minimize";
     const headerTitle=document.createElement("span");
     headerTitle.style.cssText=`font-size:12px;color:${C.accent};letter-spacing:2px;text-transform:uppercase;flex:1;font-weight:700;text-shadow:0 0 18px rgba(59,130,246,0.5);`;
-    headerTitle.textContent="⚡ ARB AUTOBUY";
+    headerTitle.textContent="⚡ ARB AUTO-CLICKER";
     const verSpan=document.createElement("span");
     verSpan.style.cssText=`font-size:9px;color:${C.textDim};font-weight:600;background:rgba(255,255,255,0.07);padding:2px 6px;border-radius:5px;`;
-    verSpan.textContent="v10.0";
+    verSpan.textContent="v10.2";
     headerRow.append(headerTitle,verSpan);
     headerRow.addEventListener("click",()=>setCollapsed(true));
     headerRow.addEventListener("mouseenter",()=>{headerRow.style.background="rgba(59,130,246,0.13)";});
@@ -672,7 +674,7 @@
     function isCompletedPage()    { return getNavTitle()===COMPLETED_TITLE||!!document.querySelector(".custom_statusInfo .done"); }
     function isLoginPage()        { return !!document.querySelector(SEL.loginPhone); }
     function isUTRPage()          { return !!document.querySelector(".x-payment-box-utr"); }
-    function isBuyPage()          { return !!document.querySelector(SEL.filterContainer); }
+    function isBuyPage()          { return !!document.querySelector(SEL.amountBtn); }
     function isTransactionPage()  { const t=getNavTitle(); return t&&t.toLowerCase().includes("transaction"); }
     function hasOrderPendingDialog() {
         const popups=document.querySelectorAll('.van-popup:not([style*="display: none"]),.van-action-sheet:not([style*="display: none"]),.van-dialog:not([style*="display: none"])');
@@ -831,8 +833,15 @@
         startStopBtn.style.cursor=en?"pointer":"not-allowed";
         if(!cycling) startStopBtn.style.background=en?"linear-gradient(135deg,rgba(34,197,94,0.85),rgba(21,128,61,0.9))":"rgba(50,50,50,0.6)";
     }
-    function startBuyTimer() { buyTimerSeconds=0; clearInterval(buyTimerInterval); buyTimerInterval=setInterval(()=>{ buyTimerSeconds++; setUI("🔍 Searching..."); },1000); }
-    function stopBuyTimer()  { clearInterval(buyTimerInterval); buyTimerInterval=null; }
+    function startBuyTimer() {
+        buyTimerSeconds=0; buyTimerStart=Date.now();
+        clearInterval(buyTimerInterval);
+        // Use Date.now() delta so throttled background tabs still show accurate elapsed time
+        buyTimerInterval=setInterval(()=>{ buyTimerSeconds=Math.floor((Date.now()-buyTimerStart)/1000); setUI("🔍 Searching..."); },1000);
+    }
+    function stopBuyTimer()  { clearInterval(buyTimerInterval); buyTimerInterval=null; buyTimerStart=null; }
+    // Refresh timer display immediately when tab regains focus (browser may have throttled the interval)
+    document.addEventListener("visibilitychange",()=>{ if(!document.hidden&&cycling&&buyTimerStart){ buyTimerSeconds=Math.floor((Date.now()-buyTimerStart)/1000); setUI("🔍 Searching..."); } });
     function startCountdownWatch() { clearInterval(countdownInterval); countdownInterval=setInterval(()=>{ if(!document.querySelector(SEL.orderCountdown)) clearInterval(countdownInterval); },1000); }
     function stopCountdownWatch()  { clearInterval(countdownInterval); }
 
@@ -851,7 +860,46 @@
 
     function getAmount(item)    { return parseFloat(item.getAttribute("maximumamount"))||0; }
     function isAvailable(item)  { const b=item.querySelector(SEL.buyButton); return b&&b.innerText.trim()==="Buy"&&!b.disabled; }
-    function switchToTab(label) { for(const item of document.querySelectorAll(SEL.filterItems)) if(item.querySelector(".txt")?.innerText?.trim()===label){ item.click(); return true; } return false; }
+    // switchToPaymentTab: clicks the payment-method tab whose text includes `label`,
+    // but only if it isn't already active. Returns true if it was clicked or already active.
+    function switchToPaymentTab(label) {
+        const tabs = document.querySelectorAll(SEL.paymentTab);
+        for (const tab of tabs) {
+            const txt = tab.querySelector(".van-tab__text")?.innerText || tab.innerText;
+            if (txt.includes(label)) {
+                if (!tab.classList.contains("van-tab--active")) tab.click();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // switchToDropdown: opens the amount popover and selects the option matching `label`.
+    // Returns a Promise that resolves true if the option was found and clicked, false otherwise.
+    function switchToDropdown(label) {
+        return new Promise(resolve => {
+            const btn = document.querySelector(SEL.amountBtn);
+            if (!btn) { resolve(false); return; }
+            btn.click();
+            // Poll for the popover to appear (up to ~400ms)
+            let attempts = 0;
+            const poll = setInterval(() => {
+                const actions = document.querySelectorAll(SEL.popoverAction);
+                if (actions.length) {
+                    clearInterval(poll);
+                    for (const action of actions) {
+                        if (action.innerText.trim() === label) { action.click(); resolve(true); return; }
+                    }
+                    // label not found — close popover by clicking btn again
+                    btn.click();
+                    resolve(false);
+                } else if (++attempts > 8) {
+                    clearInterval(poll);
+                    resolve(false);
+                }
+            }, 50);
+        });
+    }
 
     function startCompletedWatch() {
         if(completedWatched) return;
@@ -889,15 +937,18 @@
         if(isPaymentPageLoaded()){ stopCycling(); return; }
         if(hasOrderPendingDialog()){ cycling=false; clearTimeout(cycleTimer); clearTimeout(scanTimer); stopBuyTimer(); setUI("⚠️ Order pending"); return; }
         const sp=getSpeed();
-        switchToTab(TARGET_TABS[cycleIndex%TARGET_TABS.length]);
-        scanTimer=setTimeout(()=>{
+        switchToPaymentTab(PREFERRED_PAYMENT_TAB);
+        switchToDropdown(TARGET_TABS[cycleIndex%TARGET_TABS.length]).then(()=>{
             if(!cycling) return;
-            if(isPaymentPageLoaded()){ stopCycling(); return; }
-            const clicked=tryClickBuy();
-            if(clicked){
-                cycleTimer=setTimeout(()=>{ if(!cycling) return; if(isPaymentPageLoaded()) stopCycling(); else { cycleIndex++; cycleStep(); } },sp.payMs);
-            } else { cycleIndex++; cycleTimer=setTimeout(cycleStep,sp.switchMs); }
-        },sp.scanMs);
+            scanTimer=setTimeout(()=>{
+                if(!cycling) return;
+                if(isPaymentPageLoaded()){ stopCycling(); return; }
+                const clicked=tryClickBuy();
+                if(clicked){
+                    cycleTimer=setTimeout(()=>{ if(!cycling) return; if(isPaymentPageLoaded()) stopCycling(); else { cycleIndex++; cycleStep(); } },sp.payMs);
+                } else { cycleIndex++; cycleTimer=setTimeout(cycleStep,sp.switchMs); }
+            },sp.scanMs);
+        });
     }
     function startCycling() {
         if(cycling) return;
@@ -919,7 +970,7 @@
     }
 
     function observeFilterChanges() {
-        const node=document.querySelector(SEL.filterContainer);
+        const node=document.querySelector(SEL.amountBtn);
         if(!node){ setTimeout(observeFilterChanges,300); return; }
         new MutationObserver(()=>{}).observe(node,{childList:true,subtree:true,attributes:true,attributeFilter:["class"]});
     }
@@ -933,7 +984,7 @@
 
         if(!onBuyPage&&cycling) forceStop();
         setButtonEnabled(onBuyPage);
-        if(onBuyPage&&!sessionStarted){ sessionStarted=true; observeFilterChanges(); setUI("⏹ Stopped"); }
+        if(onBuyPage&&!sessionStarted){ sessionStarted=true; observeFilterChanges(); switchToPaymentTab(PREFERRED_PAYMENT_TAB); setUI("⏹ Stopped"); }
 
         loginSection.style.display=onLoginPage?"block":"none";
 
@@ -964,7 +1015,13 @@
         setTimeout(watchPage,300);
     }
 
-    window.addEventListener("resize",()=>{ const p=loadPos()||{left:window.innerWidth-266,top:8}; applyPosition(p.left,p.top); });
+    // On Android, browser chrome show/hide fires resize events constantly.
+    // Read the element's current CSS position instead of saved position to avoid drift.
+    window.addEventListener("resize",()=>{
+        const el=isBubble?bubble:overlay;
+        const left=parseFloat(el.style.left)||0, top=parseFloat(el.style.top)||0;
+        applyPosition(left,top);
+    });
 
     setCollapsed(isBubble);
     setUI("⏹ Stopped");
